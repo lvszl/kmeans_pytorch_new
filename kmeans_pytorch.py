@@ -35,13 +35,13 @@ def kmeans(
         device: torch.device = torch.device('cpu')
 ):
     """
-    perform kmeans
-    :param X: (torch.tensor) matrix
+    perform kmeans，确定最终的中心点的位置
+    :param X: (torch.tensor) matrix，X在函数中并不会改变
     :param num_clusters: (int) number of clusters  簇
     :param distance: (str) distance [options: 'euclidean', 'cosine'] [default: 'euclidean']  欧几里得距离，余弦距离
     :param tol: (float) threshold [default: 0.0001]    界，我们判定是否结束的阈值
     :param device: (torch.device) device [default: cpu]
-    :return: (torch.tensor, torch.tensor) cluster ids, cluster centers
+    :return: (torch.tensor, torch.tensor) cluster ids(中心点编号), cluster centers'coordinates(中心点横纵坐标)
     """
     print(f'running k-means on {device}..')
 
@@ -59,7 +59,7 @@ def kmeans(
     # transfer to device  转化设备
     X = X.to(device)
 
-    # initialize，随机选出中心点
+    # initialize，随机选出num_clusters个中心点
     initial_state = initialize(X, num_clusters)
 
     iteration = 0
@@ -68,17 +68,25 @@ def kmeans(
         dis = pairwise_distance_function(X, initial_state)
 
         # 选出dis中每一行的最小值的索引index，即找出该点距离最近的中心点
-        choice_cluster = torch.argmin(dis, dim=1)  # n*1的tensor(共n个点)
+        choice_cluster_id = torch.argmin(dis, dim=1)  # n*1的tensor(共n个点)
 
         initial_state_pre = initial_state.clone()
 
-        for index in range(num_clusters):
-            selected = torch.nonzero(
-                choice_cluster == index).squeeze().to(device)
+        for index in range(num_clusters):   # 遍历num_clusters次
 
-            selected = torch.index_select(X, 0, selected)
+            # nonzero函数：choice_cluster_id是 n*1 的tensor
+            # torch.nonzero(choice_cluster_id == index): 是返回choice_cluster_id中所有值为index的元素的下标
+            # 后面加squeeze()是为了去掉第0维
+            # 此处selected找出了
+            selected = torch.nonzero(
+                choice_cluster_id == index).squeeze().to(device)  # 比方说index==0，那么此轮是找出了所有以0号中心点为中心的点的编号
+
+            selected = torch.index_select(X, 0, selected)  # 找出这些点
+
+            # 更新中心点, 用均值的方式，x = 所有选它为中心的点的x的均值；y = 所有选它为中心点的y的均值
             initial_state[index] = selected.mean(dim=0)
 
+        # 类似于方差，用来衡量循环是否能够结束
         center_shift = torch.sum(
             torch.sqrt(
                 torch.sum((initial_state - initial_state_pre) ** 2, dim=1)
@@ -94,10 +102,13 @@ def kmeans(
             tol=f'{tol:0.6f}'
         )
         tqdm_meter.update()
+
         if center_shift ** 2 < tol:
             break
 
-    return choice_cluster.cpu(), initial_state.cpu()
+    # tensor.cpu(): Returns a copy of this object in CPU memory.
+    # If this object is already in CPU memory and on the correct device, then no copy is performed and the original object is returned.
+    return choice_cluster_id.cpu(), initial_state.cpu()
 
 
 def kmeans_predict(
@@ -107,9 +118,9 @@ def kmeans_predict(
         device=torch.device('cpu')
 ):
     """
-    predict using cluster centers
+    predict using cluster centers, 用上面已经训练好的中心点来对另一组同分布的点选出聚类，即进行预测
     :param X: (torch.tensor) matrix
-    :param cluster_centers: (torch.tensor) cluster centers
+    :param cluster_centers: (torch.tensor) cluster centers  # kmeans选出的中心点的坐标
     :param distance: (str) distance [options: 'euclidean', 'cosine'] [default: 'euclidean']
     :param device: (torch.device) device [default: 'cpu']
     :return: (torch.tensor) cluster ids
@@ -131,9 +142,9 @@ def kmeans_predict(
     X = X.to(device)
 
     dis = pairwise_distance_function(X, cluster_centers)
-    choice_cluster = torch.argmin(dis, dim=1)
+    choice_cluster_id = torch.argmin(dis, dim=1)
 
-    return choice_cluster.cpu()
+    return choice_cluster_id.cpu()
 
 
 def pairwise_distance(data1, data2, device=torch.device('cpu')):
