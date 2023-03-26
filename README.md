@@ -1,5 +1,6 @@
 # kmeans_pytorch_new
 kmeans_pytorch是支持GPU的pytroch写的kmeans包，但官网文档叙述不清晰，重新加了点注释
+同时官方文档的中example也不清晰，重新更新了example
 [原包链接](https://pypi.org/project/kmeans-pytorch/)
 
 # 笔记补充：
@@ -81,3 +82,5 @@ print(c.shape)
 ```
 结果：
 ![img](https://img2023.cnblogs.com/blog/2635041/202303/2635041-20230324215346384-1674188593.png)
+
+
